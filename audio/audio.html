@@ -1,0 +1,173 @@
+<script>
+    window.addEventListener('DOMContentLoaded', () => {
+        const buttons = document.querySelectorAll('.audio-button');
+        const bgAudio = document.getElementById('background-audio');
+        let currentAudio = null;
+        let currentButton = null;
+        let bgStarted = false;
+        let isPausingInternally = false;
+        let animationFrameId = null;
+
+        bgAudio.volume = 0.1;
+
+        const pauseAudio = (audioElement, updateUI = true) => {
+            if (!audioElement || audioElement.paused) return;
+            isPausingInternally = true;
+            audioElement.pause();
+            isPausingInternally = false;
+            if (updateUI) updateButtonUI(audioElement, false, false);
+        };
+
+        const stopAndResetAudio = (audioElement, updateUI = true) => {
+            if (!audioElement) return;
+            isPausingInternally = true;
+            audioElement.pause();
+            audioElement.currentTime = 0;
+            isPausingInternally = false;
+            if (updateUI) updateButtonUI(audioElement, true, false);
+        };
+
+        const updateButtonUI = (audioElement, resetProgress = false, playing = true) => {
+            const btn = document.querySelector(`.audio-button[data-audio-id="${audioElement.id}"]`);
+            if (!btn) return;
+            btn.classList.toggle('playing', playing);
+            btn.classList.toggle('paused', !playing);
+            if (resetProgress) resetProgressCircle(btn);
+            toggleIcons(btn, playing);
+        };
+
+        const toggleIcons = (button, playing) => {
+            const micIcon = button.querySelector('.microphone-icon');
+            const pauseIcon = button.querySelector('.pause-icon');
+            if (micIcon) micIcon.style.display = playing ? 'none' : 'block';
+            if (pauseIcon) pauseIcon.style.display = playing ? 'block' : 'none';
+        };
+
+        const updateProgress = () => {
+            if (!currentAudio || currentAudio.paused) return;
+            const circle = currentButton?.querySelector('.audio-button-progress-circle');
+            if (!circle) return;
+
+            const duration = currentAudio.duration || 0;
+            if (duration === 0) return;
+
+            const percent = currentAudio.currentTime / duration;
+            const radius = circle.r.baseVal.value;
+            const circumference = 2 * Math.PI * radius;
+            const offset = circumference * (1 - percent);
+
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            circle.style.strokeDashoffset = offset;
+
+            animationFrameId = requestAnimationFrame(updateProgress);
+        };
+
+        const resetProgressCircle = (button) => {
+            const circle = button.querySelector('.audio-button-progress-circle');
+            if (!circle) return;
+            const radius = circle.r.baseVal.value;
+            const circumference = 2 * Math.PI * radius;
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            circle.style.strokeDashoffset = circumference;
+            cancelAnimationFrame(animationFrameId);
+        };
+
+        const tryResumeBgAudio = () => {
+            if (!currentAudio && bgAudio.paused && !document.hidden) {
+                bgAudio.play().catch(() => { });
+            }
+        };
+
+        const saveBgAudioTime = () => {
+            localStorage.setItem('bgAudioTime', bgAudio.currentTime);
+        };
+
+        const restoreBgAudioTime = () => {
+            const savedTime = localStorage.getItem('bgAudioTime');
+            if (savedTime !== null) {
+                bgAudio.currentTime = parseFloat(savedTime);
+                bgAudio.play().catch(() => { });
+            } else {
+                tryResumeBgAudio();
+            }
+        };
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.audio-button') && !bgStarted && (!currentAudio || currentAudio.paused)) {
+                bgAudio.play().then(() => { bgStarted = true; }).catch(() => { });
+            }
+        });
+
+        buttons.forEach(button => {
+            const audioId = button.dataset.audioId;
+            const audio = document.getElementById(audioId);
+
+            resetProgressCircle(button);
+
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                const isSameAudio = audio === currentAudio;
+
+                if (isSameAudio && !audio.paused) {
+                    pauseAudio(audio);
+                    currentAudio = null;
+                    currentButton = null;
+                    tryResumeBgAudio();
+                    return;
+                }
+
+                if (currentAudio) pauseAudio(currentAudio);
+                pauseAudio(bgAudio, false);
+
+                currentAudio = audio;
+                currentButton = button;
+
+                audio.play().then(() => {
+                    updateButtonUI(audio, false, true);
+                    updateProgress();
+                }).catch(console.error);
+            });
+
+            audio.addEventListener('ended', () => {
+                if (currentAudio === audio) {
+                    stopAndResetAudio(audio);
+                    currentAudio = null;
+                    currentButton = null;
+                    tryResumeBgAudio();
+                }
+            });
+
+            audio.addEventListener('pause', () => {
+                if (!isPausingInternally && currentAudio === audio) {
+                    currentAudio = null;
+                    currentButton = null;
+                    tryResumeBgAudio();
+                    updateButtonUI(audio, true, false); // Reset to initial state when paused
+                }
+            });
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && !bgAudio.paused) {
+                bgAudio.pause();
+                saveBgAudioTime();
+            } else if (!document.hidden) {
+                restoreBgAudioTime();
+            }
+        });
+
+        window.addEventListener('blur', () => {
+            if (!bgAudio.paused) {
+                bgAudio.pause();
+                saveBgAudioTime();
+            }
+        });
+
+        window.addEventListener('focus', () => {
+            restoreBgAudioTime();
+        });
+
+        window.addEventListener('beforeunload', saveBgAudioTime);
+    });
+</script>
