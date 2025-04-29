@@ -78,13 +78,13 @@
         left: 0;
         align-items: center;
         justify-content: center;
-        transform: rotate(-90deg);
+        transform: rotateZ(-90deg) rotatex(180deg);
         pointer-events: none;
     }
 </style>
 
 <div class="audio-button-wrapper">
-    <a class="audio-button paused" data-audio-id="custom-audio-68102f90eb174" aria-label="Play Audio" aria-hidden="">
+    <a class="audio-button" data-audio-id="custom-audio-681035b31dc17" aria-label="Play Audio" aria-hidden="">
         <svg xmlns="http://www.w3.org/2000/svg" width="34" height="54" viewBox="0 0 34 54" fill="none"
             class="audio-button-audio">
             <path
@@ -105,8 +105,8 @@
             </circle>
         </svg>
     </a>
-    <p>Chinese</p>
-    <audio id="custom-audio-68102f90eb174" src="https://ziranjiti.com/wp-content/uploads/2025/04/14luChinese.wav"
+    <p>English</p>
+    <audio id="custom-audio-681035b31dc17" src="https://ziranjiti.com/wp-content/uploads/2025/04/14luEnglish.wav"
         preload="auto"></audio>
 </div>
 
@@ -166,7 +166,8 @@
             const percent = currentAudio.currentTime / duration;
             const radius = circle.r.baseVal.value;
             const circumference = 2 * Math.PI * radius;
-            const offset = circumference * (1 - percent);
+            // Invertir el cálculo para que vaya de 100% a 0%
+            const offset = circumference * percent;
 
             circle.style.strokeDasharray = `${circumference} ${circumference}`;
             circle.style.strokeDashoffset = offset;
